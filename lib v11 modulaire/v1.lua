@@ -906,37 +906,36 @@ function SoroniceLib:CreateWindow(Config)
 
     -- ============================================================
     -- CONTEXTE PARTAGÉ pour les modules GitHub
-    -- Toutes les variables locales nécessaires sont disponibles ici
+    -- local déclarés ICI pour que CreateElement et le bloc Settings y accèdent
     -- ============================================================
+    local ModuleCtx      -- déclaré avant l'assignation (fix: évite le nil à la ligne 978)
+    local ButtonRegistry -- rempli au premier appel de CreateElement
+    local IconCardFn     -- idem
+
     ModuleCtx = {
-        Settings        = Settings,
-        TweenService    = TweenService,
+        Settings         = Settings,
+        TweenService     = TweenService,
         UserInputService = UserInputService,
-        ApplyLock       = ApplyLock,
-        ActiveToggles   = ActiveToggles,
-        -- Settings page
-        SettingsPage    = SettingsPage,
-        IsMobile        = IsMobile,
-        MainFrame       = MainFrame,
-        MainCorner      = MainCorner,
-        MainStroke      = MainStroke,
-        AlwaysVisible   = AlwaysVisibleRef,
-        antiAfkActive   = antiAfkRef,
-        TargetSize      = TargetSize,
-        ForceShow       = ForceShow,
-        StartMulticolor = StartMulticolor,
-        StopMulticolor  = StopMulticolor,
-        CreateElement   = nil, -- rempli après la définition de CreateElement (ci-dessous)
+        ApplyLock        = ApplyLock,
+        ActiveToggles    = ActiveToggles,
+        SettingsPage     = SettingsPage,
+        IsMobile         = IsMobile,
+        MainFrame        = MainFrame,
+        MainCorner       = MainCorner,
+        MainStroke       = MainStroke,
+        AlwaysVisible    = AlwaysVisibleRef,
+        antiAfkActive    = antiAfkRef,
+        TargetSize       = TargetSize,
+        ForceShow        = ForceShow,
+        StartMulticolor  = StartMulticolor,
+        StopMulticolor   = StopMulticolor,
+        CreateElement    = nil, -- mis à jour juste après la définition de CreateElement
     }
 
 	local WindowFunctions = {}
 	local FirstTab = true
 
     -- [ FONCTIONS DE CRÉATION D'ÉLÉMENTS ] --
-    -- Construit le contexte partagé pour tous les modules
-    local ModuleCtx  -- défini après MainStroke (plus bas), mais utilisé dans les modules
-    local ButtonRegistry  -- rempli après la définition du contexte
-    local IconCardFn
 
     -- Proxy de création : cherche dans ButtonRegistry, puis dans IconCardFn
     local function CreateElement(Page, Type, Config)
