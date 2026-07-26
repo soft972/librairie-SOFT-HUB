@@ -9,7 +9,8 @@ local RunService = game:GetService("RunService")
 local MarketplaceService = game:GetService("MarketplaceService") 
 local HttpService = game:GetService("HttpService")
 local StatsService = game:GetService("Stats") 
-local LocalPlayer = game.Players.LocalPlayer
+-- ✅ La ligne corrigée est juste en dessous :
+local LocalPlayer = game:GetService("Players").LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 local VirtualUser = game:GetService("VirtualUser")
 local StarterGui = game:GetService("StarterGui")
