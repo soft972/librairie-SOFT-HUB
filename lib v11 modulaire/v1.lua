@@ -9,8 +9,7 @@ local RunService = game:GetService("RunService")
 local MarketplaceService = game:GetService("MarketplaceService") 
 local HttpService = game:GetService("HttpService")
 local StatsService = game:GetService("Stats") 
--- ✅ La ligne corrigée est juste en dessous :
-local LocalPlayer = game:GetService("Players").LocalPlayer
+local LocalPlayer = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 local VirtualUser = game:GetService("VirtualUser")
 local StarterGui = game:GetService("StarterGui")
@@ -291,9 +290,9 @@ function SoroniceLib:CreateWindow(Config)
     -- sur GitHub. Format raw :
     --   https://raw.githubusercontent.com/COMPTE/REPO/main/FichierX.lua
     -- ============================================================
-    local BUTTONS_URL  = "https://raw.githubusercontent.com/soft972/librairie-SOFT-HUB/refs/heads/main/buttons.lua"
-    local ICONCARD_URL = "https://raw.githubusercontent.com/soft972/librairie-SOFT-HUB/refs/heads/main/iconcard.lua"
-    local SETTINGS_URL = "https://raw.githubusercontent.com/soft972/librairie-SOFT-HUB/refs/heads/main/settings.lua"
+    local BUTTONS_URL  = "https://raw.githubusercontent.com/TON_COMPTE/TON_REPO/main/SoroniceLib_Buttons.lua"
+    local ICONCARD_URL = "https://raw.githubusercontent.com/TON_COMPTE/TON_REPO/main/SoroniceLib_IconCard.lua"
+    local SETTINGS_URL = "https://raw.githubusercontent.com/TON_COMPTE/TON_REPO/main/SoroniceLib_Settings.lua"
 
     -- antiAfkActive passé par référence aux modules externes
     local antiAfkRef = { value = false }
@@ -345,19 +344,20 @@ function SoroniceLib:CreateWindow(Config)
         return false 
     end
 
-    -- [BOUTON MAISON MOBILE]
-    local MobileOpenBtn = nil
-    if IsMobile then
-        MobileOpenBtn = Instance.new("ImageButton")
-        MobileOpenBtn.Name = "MobileOpenButton"
-        MobileOpenBtn.Parent = ScreenGui
-        MobileOpenBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        MobileOpenBtn.BackgroundTransparency = 0.2
-        MobileOpenBtn.Position = UDim2.new(0.1, 0, 0.1, 0) 
-        MobileOpenBtn.Size = UDim2.new(0, 50, 0, 50)
-        MobileOpenBtn.Image = Config.MobileImage or "rbxassetid://133601263847208"
-        MobileOpenBtn.Visible = false 
-        Instance.new("UICorner", MobileOpenBtn).CornerRadius = UDim.new(0, 12)
+    -- [BOUTON FLOTTANT — créé sur tous les appareils, toujours caché par défaut]
+    -- Mobile : s'affiche quand la fenêtre est réduite
+    -- PC     : activable depuis les Paramètres ("Bouton flottant permanent")
+    local MobileOpenBtn = Instance.new("ImageButton")
+    MobileOpenBtn.Name = "MobileOpenButton"
+    MobileOpenBtn.Parent = ScreenGui
+    MobileOpenBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    MobileOpenBtn.BackgroundTransparency = 0.2
+    MobileOpenBtn.Position = UDim2.new(0.1, 0, 0.1, 0)
+    MobileOpenBtn.Size = UDim2.new(0, 50, 0, 50)
+    MobileOpenBtn.Image = Config.MobileImage or "rbxassetid://133601263847208"
+    MobileOpenBtn.Visible = false
+    Instance.new("UICorner", MobileOpenBtn).CornerRadius = UDim.new(0, 12)
+    do
         local dragging_mob, dragInput_mob, dragStart_mob, startPos_mob
         
         MobileOpenBtn.InputBegan:Connect(function(input)
@@ -386,7 +386,7 @@ function SoroniceLib:CreateWindow(Config)
                 dragging_mob = false
             end
         end)
-    end
+    end  -- fin do drag
 
 	-- [ MAIN FRAME : TAILLE D'ORIGINE - 550px STRICTE ]
 	local MainFrame = Instance.new("Frame")
@@ -419,8 +419,9 @@ function SoroniceLib:CreateWindow(Config)
     MainStroke.Thickness = 1.5
     MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-    -- [ TOUJOURS VISIBLE (désactive le masquage clavier/bouton mobile) ] --
-    local AlwaysVisible = false
+    -- [ TOUJOURS VISIBLE ]
+    -- AlwaysVisibleRef.value est mis à jour par le module Settings
+    -- ToggleVisibility lit AlwaysVisibleRef.value directement
 
     -- [ CONTOUR MULTICOLORE (RGB) ] --
     local MulticolorToken = 0
@@ -667,7 +668,7 @@ function SoroniceLib:CreateWindow(Config)
     local isAnimating = false
 
     local function ToggleVisibility()
-        if AlwaysVisible then return end
+        if AlwaysVisibleRef.value then return end
         if isAnimating then return end
         isAnimating = true
         IsHidden = not IsHidden
@@ -677,12 +678,12 @@ function SoroniceLib:CreateWindow(Config)
             closeT:Play()
             closeT.Completed:Wait()
             MainFrame.Visible = false
-            if IsMobile and MobileOpenBtn then 
-                MobileOpenBtn.Visible = true 
+            if MobileOpenBtn then
+                MobileOpenBtn.Visible = true
             end
         else
-            if IsMobile and MobileOpenBtn then 
-                MobileOpenBtn.Visible = false 
+            if MobileOpenBtn then
+                MobileOpenBtn.Visible = false
             end
             MainFrame.Visible = true
             local openT = TweenService:Create(MainFrame, TweenInfo.new(0.7, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = TargetSize})
@@ -696,17 +697,15 @@ function SoroniceLib:CreateWindow(Config)
     local function ForceShow()
         if not IsHidden then return end
         IsHidden = false
-        if IsMobile and MobileOpenBtn then 
-            MobileOpenBtn.Visible = false 
+        if MobileOpenBtn then
+            MobileOpenBtn.Visible = false
         end
         MainFrame.Visible = true
         TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = TargetSize}):Play()
     end
 
 	MinBtn.MouseButton1Click:Connect(ToggleVisibility)
-    if IsMobile and MobileOpenBtn then 
-        MobileOpenBtn.MouseButton1Click:Connect(ToggleVisibility) 
-    end
+    MobileOpenBtn.MouseButton1Click:Connect(ToggleVisibility)
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if not IsMobile and not gameProcessed and input.KeyCode == Settings.Keybind then 
             ToggleVisibility() 
@@ -820,11 +819,8 @@ function SoroniceLib:CreateWindow(Config)
 	ContentContainer.Parent = MainFrame
 	ContentContainer.BackgroundTransparency = 1
 	ContentContainer.Position = UDim2.new(0, 80, 0, 50)
-    if IsMobile then
-        ContentContainer.Size = UDim2.new(0, 310, 0, 200)
-    else
-	    ContentContainer.Size = UDim2.new(0, 460, 0, 290)
-    end
+    -- Taille RELATIVE à MainFrame → se redimensionne automatiquement
+    ContentContainer.Size = UDim2.new(1, -80, 1, -60)
     ContentContainer.ClipsDescendants = true 
 
     -- [ FILTRAGE ] --
@@ -930,6 +926,8 @@ function SoroniceLib:CreateWindow(Config)
         ForceShow        = ForceShow,
         StartMulticolor  = StartMulticolor,
         StopMulticolor   = StopMulticolor,
+        MobileOpenBtn    = MobileOpenBtn,
+        ToggleVisibility = ToggleVisibility,
         CreateElement    = nil, -- mis à jour juste après la définition de CreateElement
     }
 
