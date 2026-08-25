@@ -1287,16 +1287,26 @@ function SoroniceLib:CreateWindow(Config)
                 end)
                 function RT:Set(v) AB.Text=tostring(v) end
             end
-            -- Hover sur le bouton (centré)
-            if Config.HoverEffect~=false then
-                local BS=ActionRow.Size
+            -- Hover sur le bouton uniquement (agrandissement centré)
+            -- Config.HoverEffect = false pour désactiver
+            -- Config.HoverStroke = true pour activer le changement de couleur du contour
+            if Config.HoverEffect ~= false then
+                local BS = ActionRow.Size
                 Card.MouseEnter:Connect(function()
-                    TS:Create(ActionRow,TweenInfo.new(0.15,Enum.EasingStyle.Quad),{Size=UDim2.new(BS.X.Scale,BS.X.Offset+6,BS.Y.Scale,BS.Y.Offset+4)}):Play()
-                    TS:Create(CS,TweenInfo.new(0.15),{Color=S.AccentColor,Thickness=2}):Play()
+                    TS:Create(ActionRow, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
+                        Size = UDim2.new(BS.X.Scale, BS.X.Offset+6, BS.Y.Scale, BS.Y.Offset+4)
+                    }):Play()
+                    if Config.HoverStroke then
+                        TS:Create(CS, TweenInfo.new(0.15), {Color=S.AccentColor, Thickness=2}):Play()
+                    end
                 end)
                 Card.MouseLeave:Connect(function()
-                    TS:Create(ActionRow,TweenInfo.new(0.15,Enum.EasingStyle.Quad),{Size=BS}):Play()
-                    TS:Create(CS,TweenInfo.new(0.15),{Color=Config.StrokeColor or Color3.fromRGB(55,55,55),Thickness=1}):Play()
+                    TS:Create(ActionRow, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {Size=BS}):Play()
+                    if Config.HoverStroke then
+                        TS:Create(CS, TweenInfo.new(0.15), {
+                            Color=Config.StrokeColor or Color3.fromRGB(55,55,55), Thickness=1
+                        }):Play()
+                    end
                 end)
             end
             function RT:SetImage(i) Img.Image=i end
