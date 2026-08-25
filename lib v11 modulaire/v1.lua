@@ -934,43 +934,429 @@ function SoroniceLib:CreateWindow(Config)
 	local WindowFunctions = {}
 	local FirstTab = true
 
+    -- ============================================================
+    -- PRÉ-CHARGEMENT IMMÉDIAT DES MODULES
+    -- Les 3 chargements se font EN PARALLÈLE dès CreateWindow,
+    -- avant même le premier onglet. Si GitHub est inaccessible,
+    -- le fallback intégré prend le relais et TOUT continue de marcher.
+    -- ============================================================
+    local function MakeFallbackButtons(Ctx)
+        -- Fallback intégré : tous les types de boutons, aucune dépendance réseau
+        local S   = Ctx.Settings
+        local TS  = Ctx.TweenService
+        local UIS = Ctx.UserInputService
+        local AL  = Ctx.ApplyLock
+        local AT  = Ctx.ActiveToggles
+        local Reg = {}
+
+        -- BUTTON
+        function Reg.Button(Page, Config)
+            local RT = {}
+            local F = Instance.new("Frame")
+            F.Parent = Page; F.BackgroundColor3 = Color3.fromRGB(30,30,30)
+            F.Size = UDim2.new(1,-10,0,35)
+            Instance.new("UICorner",F).CornerRadius = UDim.new(0,6)
+            F:SetAttribute("SearchName", string.lower(Config.Name or ""))
+            local Btn = Instance.new("TextButton")
+            Btn.Parent=F; Btn.BackgroundTransparency=1; Btn.Size=UDim2.new(1,0,1,0)
+            Btn.Font=Enum.Font.SourceSans; Btn.Text="  "..(Config.Name or "")
+            Btn.TextColor3=S.TextColor; Btn.TextSize=16; Btn.TextXAlignment=Enum.TextXAlignment.Left
+            local Locked = AL(F, Config)
+            if not Locked then
+                Btn.MouseButton1Click:Connect(function()
+                    TS:Create(F,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(50,50,50)}):Play()
+                    task.wait(0.1)
+                    TS:Create(F,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(30,30,30)}):Play()
+                    if Config.Callback then Config.Callback() end
+                end)
+            else Btn.Active=false end
+            function RT:Set(n) Btn.Text="  "..n end
+            return RT
+        end
+
+        -- TOGGLE (style 1 classique)
+        function Reg.Toggle(Page, Config)
+            local RT = {}
+            local Style = Config.ToggleStyle or 1
+            local F = Instance.new("Frame")
+            F.Parent=Page; F.BackgroundTransparency=1; F.Size=UDim2.new(1,-10,0,35)
+            F:SetAttribute("SearchName", string.lower(Config.Name or ""))
+            local Lbl = Instance.new("TextLabel")
+            Lbl.Parent=F; Lbl.BackgroundTransparency=1; Lbl.Size=UDim2.new(0.7,0,1,0)
+            Lbl.Position=UDim2.new(0,10,0,0); Lbl.Text=Config.Name or ""; Lbl.TextColor3=S.TextColor
+            Lbl.TextXAlignment=Enum.TextXAlignment.Left; Lbl.TextSize=16; Lbl.Font=Enum.Font.SourceSans
+            local Locked = AL(F, Config)
+            local Toggled = Config.CurrentValue or false
+            local SwitchBg = Instance.new("Frame")
+            SwitchBg.Parent=F; SwitchBg.BackgroundColor3=Color3.fromRGB(40,40,40)
+            SwitchBg.Position=UDim2.new(1,-60,0.5,-12); SwitchBg.Size=UDim2.new(0,50,0,24)
+            Instance.new("UICorner",SwitchBg).CornerRadius=UDim.new(1,0)
+            -- Rainbow stroke pour style 3
+            if Style == 3 then
+                local RS = Instance.new("UIStroke"); RS.Parent=SwitchBg; RS.Thickness=2
+                task.spawn(function() local h=0
+                    while SwitchBg.Parent do h=(h+0.006)%1; RS.Color=Color3.fromHSV(h,1,1); task.wait(0.025) end
+                end)
+            end
+            local Knob = Instance.new("Frame")
+            Knob.Parent=SwitchBg; Knob.BackgroundColor3=S.TextColor
+            Knob.Position=UDim2.new(0,2,0.5,-10); Knob.Size=UDim2.new(0,20,0,20)
+            Instance.new("UICorner",Knob).CornerRadius=UDim.new(1,0)
+            table.insert(AT, {Callback=Config.Callback})
+            local function Update()
+                local tp = Toggled and UDim2.new(1,-22,0.5,-10) or UDim2.new(0,2,0.5,-10)
+                local tc = Toggled and S.AccentColor or Color3.fromRGB(40,40,40)
+                TS:Create(Knob,TweenInfo.new(0.2),{Position=tp}):Play()
+                TS:Create(SwitchBg,TweenInfo.new(0.2),{BackgroundColor3=tc}):Play()
+                if Config.Callback then Config.Callback(Toggled) end
+            end
+            if Toggled then Update() end
+            local CB = Instance.new("TextButton"); CB.Parent=SwitchBg
+            CB.BackgroundTransparency=1; CB.Size=UDim2.new(1,0,1,0); CB.Text=""
+            if not Locked then CB.MouseButton1Click:Connect(function() Toggled=not Toggled; Update() end)
+            else CB.Active=false end
+            function RT:Set(v) Toggled=v; Update() end
+            return RT
+        end
+
+        -- LABEL
+        function Reg.Label(Page, Config)
+            local RT = {}
+            local F = Instance.new("Frame"); F.Parent=Page; F.BackgroundTransparency=1; F.Size=UDim2.new(1,-10,0,25)
+            F:SetAttribute("SearchName", string.lower(Config.Text or ""))
+            local T = Instance.new("TextLabel"); T.Parent=F; T.BackgroundTransparency=1
+            T.Size=UDim2.new(1,0,1,0); T.Position=UDim2.new(0,10,0,0); T.Text=Config.Text or ""
+            T.TextColor3=S.SubTextColor; T.TextXAlignment=Enum.TextXAlignment.Left
+            T.Font=Enum.Font.SourceSans; T.TextSize=16
+            function RT:Set(t) T.Text=t end; return RT
+        end
+
+        -- SECTION
+        function Reg.Section(Page, Config)
+            local RT = {}
+            local F = Instance.new("Frame"); F.Parent=Page; F.BackgroundTransparency=1; F.Size=UDim2.new(1,-10,0,30)
+            F:SetAttribute("SearchName", string.lower(Config.Text or ""))
+            local T = Instance.new("TextLabel"); T.Parent=F; T.BackgroundTransparency=1
+            T.Size=UDim2.new(1,0,1,0); T.Position=UDim2.new(0,10,0,0); T.Text=Config.Text or ""
+            T.TextColor3=S.AccentColor; T.TextXAlignment=Enum.TextXAlignment.Left
+            T.Font=Enum.Font.SourceSansBold; T.TextSize=18
+            function RT:Set(t) T.Text=t end; return RT
+        end
+
+        -- DIVIDER
+        function Reg.Divider(Page, Config)
+            local RT = {}
+            local F = Instance.new("Frame"); F.Parent=Page; F.BackgroundTransparency=1; F.Size=UDim2.new(1,-10,0,10)
+            local L = Instance.new("Frame"); L.Parent=F; L.BackgroundColor3=Color3.fromRGB(60,60,60)
+            L.Size=UDim2.new(1,0,0,2); L.Position=UDim2.new(0,0,0.5,0); L.BorderSizePixel=0
+            function RT:Set(v) F.Visible=v end; return RT
+        end
+
+        -- PARAGRAPH
+        function Reg.Paragraph(Page, Config)
+            local RT = {}
+            local F = Instance.new("Frame"); F.Parent=Page; F.BackgroundTransparency=1; F.Size=UDim2.new(1,-10,0,60)
+            F:SetAttribute("SearchName", string.lower(Config.Title or ""))
+            local T1 = Instance.new("TextLabel"); T1.Parent=F; T1.BackgroundTransparency=1
+            T1.Size=UDim2.new(1,0,0,20); T1.Position=UDim2.new(0,10,0,0); T1.Text=Config.Title or ""
+            T1.TextColor3=S.AccentColor; T1.TextXAlignment=Enum.TextXAlignment.Left
+            T1.Font=Enum.Font.SourceSansBold; T1.TextSize=16
+            local T2 = Instance.new("TextLabel"); T2.Parent=F; T2.BackgroundTransparency=1
+            T2.Size=UDim2.new(1,-20,0,40); T2.Position=UDim2.new(0,10,0,20); T2.Text=Config.Content or ""
+            T2.TextColor3=Color3.new(0.8,0.8,0.8); T2.TextXAlignment=Enum.TextXAlignment.Left
+            T2.Font=Enum.Font.SourceSans; T2.TextSize=14; T2.TextWrapped=true
+            function RT:Set(c) if c.Title then T1.Text=c.Title end; if c.Content then T2.Text=c.Content end end
+            return RT
+        end
+
+        -- INPUT
+        function Reg.Input(Page, Config)
+            local RT = {}
+            local F = Instance.new("Frame"); F.Parent=Page; F.BackgroundColor3=Color3.fromRGB(30,30,30)
+            F.Size=UDim2.new(1,-10,0,35); Instance.new("UICorner",F).CornerRadius=UDim.new(0,6)
+            F:SetAttribute("SearchName", string.lower(Config.Name or ""))
+            local L = Instance.new("TextLabel"); L.Parent=F; L.BackgroundTransparency=1
+            L.Position=UDim2.new(0,10,0,0); L.Size=UDim2.new(0.5,0,1,0); L.Text=Config.Name or ""
+            L.TextColor3=S.TextColor; L.TextXAlignment=Enum.TextXAlignment.Left
+            L.Font=Enum.Font.SourceSans; L.TextSize=16
+            local Box = Instance.new("TextBox"); Box.Parent=F; Box.BackgroundColor3=Color3.fromRGB(40,40,40)
+            Box.Position=UDim2.new(0.6,0,0.15,0); Box.Size=UDim2.new(0.38,0,0.7,0)
+            Box.Font=Enum.Font.SourceSans; Box.Text=Config.CurrentValue or ""; Box.PlaceholderText=Config.PlaceholderText or ""
+            Box.TextColor3=Color3.new(1,1,1); Box.TextSize=14
+            Instance.new("UICorner",Box).CornerRadius=UDim.new(0,4)
+            Box.FocusLost:Connect(function() if Config.Callback then Config.Callback(Box.Text) end end)
+            function RT:Set(t) Box.Text=t end; return RT
+        end
+
+        -- KEYBIND
+        function Reg.Keybind(Page, Config)
+            local RT = {}
+            local F = Instance.new("Frame"); F.Parent=Page; F.BackgroundColor3=Color3.fromRGB(30,30,30)
+            F.Size=UDim2.new(1,-10,0,35); Instance.new("UICorner",F).CornerRadius=UDim.new(0,6)
+            F:SetAttribute("SearchName", string.lower(Config.Name or ""))
+            local L = Instance.new("TextLabel"); L.Parent=F; L.BackgroundTransparency=1
+            L.Size=UDim2.new(0.7,0,1,0); L.Position=UDim2.new(0,10,0,0); L.Text=Config.Name or ""
+            L.TextColor3=S.TextColor; L.TextXAlignment=Enum.TextXAlignment.Left
+            L.Font=Enum.Font.SourceSans; L.TextSize=16
+            local BB = Instance.new("TextButton"); BB.Parent=F; BB.BackgroundColor3=Color3.fromRGB(40,40,40)
+            BB.Position=UDim2.new(1,-80,0.5,-12); BB.Size=UDim2.new(0,70,0,24)
+            BB.Text=UIS:GetStringForKeyCode(S.Keybind); BB.Font=Enum.Font.SourceSansBold
+            BB.TextColor3=S.TextColor; BB.TextSize=14
+            Instance.new("UICorner",BB).CornerRadius=UDim.new(0,6)
+            BB.MouseButton1Click:Connect(function()
+                BB.Text="..."
+                local Conn; Conn=UIS.InputBegan:Connect(function(input)
+                    if input.UserInputType==Enum.UserInputType.Keyboard then
+                        S.Keybind=input.KeyCode; BB.Text=UIS:GetStringForKeyCode(input.KeyCode)
+                        Conn:Disconnect()
+                    end
+                end)
+            end)
+            function RT:Set(k) BB.Text=k end; return RT
+        end
+
+        -- DROPDOWN
+        function Reg.Dropdown(Page, Config)
+            local RT = {}
+            local F = Instance.new("Frame"); F.Parent=Page; F.BackgroundColor3=Color3.fromRGB(30,30,30)
+            F.Size=UDim2.new(1,-10,0,35); F.ClipsDescendants=true
+            Instance.new("UICorner",F).CornerRadius=UDim.new(0,6)
+            F:SetAttribute("SearchName", string.lower(Config.Name or ""))
+            local Locked = AL(F, Config)
+            local Open=false; local Options=Config.Options or {}; local Current=Config.CurrentOption or Options[1] or "..."
+            local MB = Instance.new("TextButton"); MB.Parent=F; MB.BackgroundTransparency=1
+            MB.Size=UDim2.new(1,0,0,35); MB.Font=Enum.Font.SourceSans
+            MB.Text="  "..(Config.Name or "")..": "..Current; MB.TextColor3=Color3.new(1,1,1)
+            MB.TextSize=16; MB.TextXAlignment=Enum.TextXAlignment.Left
+            local OC = Instance.new("Frame"); OC.Parent=F; OC.BackgroundTransparency=1
+            OC.Position=UDim2.new(0,0,0,35); OC.Size=UDim2.new(1,0,0,0); OC.Visible=false
+            Instance.new("UIListLayout",OC).SortOrder=Enum.SortOrder.LayoutOrder
+            local function Refresh(List)
+                for _,v in pairs(OC:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+                Options=List
+                for _,opt in ipairs(Options) do
+                    local OB=Instance.new("TextButton"); OB.Parent=OC; OB.BackgroundColor3=Color3.fromRGB(35,35,35)
+                    OB.Size=UDim2.new(1,0,0,30); OB.Text="  "..opt; OB.TextColor3=S.TextColor
+                    OB.TextXAlignment=Enum.TextXAlignment.Left; OB.Font=Enum.Font.SourceSans; OB.TextSize=15
+                    OB.MouseButton1Click:Connect(function()
+                        Current=opt; MB.Text="  "..(Config.Name or "")..": "..opt; Open=false
+                        TS:Create(F,TweenInfo.new(0.2,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{Size=UDim2.new(1,-10,0,35)}):Play()
+                        task.wait(0.2); OC.Visible=false
+                        if Config.Callback then Config.Callback(opt) end
+                    end)
+                end
+            end
+            Refresh(Options)
+            if not Locked then
+                MB.MouseButton1Click:Connect(function()
+                    Open=not Open
+                    if Open then OC.Visible=true
+                        TS:Create(F,TweenInfo.new(0.2,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=UDim2.new(1,-10,0,35+#Options*30)}):Play()
+                    else
+                        TS:Create(F,TweenInfo.new(0.2,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{Size=UDim2.new(1,-10,0,35)}):Play()
+                        task.wait(0.2); OC.Visible=false
+                    end
+                end)
+            else MB.Active=false end
+            function RT:Refresh(l) Refresh(l) end
+            function RT:Set(o) Current=o; MB.Text="  "..(Config.Name or "")..": "..o end
+            return RT
+        end
+
+        -- COLOR PICKER (simplifié)
+        function Reg.ColorPicker(Page, Config)
+            local RT = {}
+            local F = Instance.new("Frame"); F.Parent=Page; F.BackgroundColor3=Color3.fromRGB(30,30,30)
+            F.Size=UDim2.new(1,-10,0,160); Instance.new("UICorner",F).CornerRadius=UDim.new(0,6)
+            F:SetAttribute("SearchName", string.lower(Config.Name or ""))
+            local Locked=AL(F,Config)
+            local L=Instance.new("TextLabel"); L.Parent=F; L.BackgroundTransparency=1
+            L.Position=UDim2.new(0,10,0,5); L.Size=UDim2.new(1,0,0,20); L.Text=Config.Name or ""
+            L.TextColor3=S.TextColor; L.TextXAlignment=Enum.TextXAlignment.Left
+            L.Font=Enum.Font.SourceSansBold; L.TextSize=16
+            local Preview=Instance.new("Frame"); Preview.Parent=F
+            Preview.Position=UDim2.new(0,10,0,30); Preview.Size=UDim2.new(0,30,0,30)
+            Preview.BackgroundColor3=Config.Color or Color3.new(1,1,1)
+            Instance.new("UICorner",Preview).CornerRadius=UDim.new(0,4)
+            local SVBox=Instance.new("TextButton"); SVBox.Parent=F; SVBox.BackgroundColor3=Color3.new(1,0,0)
+            SVBox.Position=UDim2.new(0,60,0,30); SVBox.Size=UDim2.new(0,150,0,100); SVBox.Text=""
+            local SVG=Instance.new("UIGradient"); SVG.Parent=SVBox
+            SVG.Color=ColorSequence.new{ColorSequenceKeypoint.new(0,Color3.new(1,1,1)),ColorSequenceKeypoint.new(1,Color3.new(1,0,0))}
+            local SVI=Instance.new("ImageLabel"); SVI.Parent=SVBox; SVI.Size=UDim2.new(1,0,1,0)
+            SVI.Image="rbxassetid://156579757"; SVI.BackgroundTransparency=1
+            local HueBar=Instance.new("TextButton"); HueBar.Parent=F; HueBar.Text=""
+            HueBar.Position=UDim2.new(0,60,0,135); HueBar.Size=UDim2.new(0,150,0,15)
+            local HG=Instance.new("UIGradient"); HG.Parent=HueBar
+            HG.Color=ColorSequence.new{ColorSequenceKeypoint.new(0,Color3.new(1,0,0)),ColorSequenceKeypoint.new(0.167,Color3.new(1,1,0)),ColorSequenceKeypoint.new(0.333,Color3.new(0,1,0)),ColorSequenceKeypoint.new(0.5,Color3.new(0,1,1)),ColorSequenceKeypoint.new(0.667,Color3.new(0,0,1)),ColorSequenceKeypoint.new(0.833,Color3.new(1,0,1)),ColorSequenceKeypoint.new(1,Color3.new(1,0,0))}
+            local H2,SA,V2=0,1,1
+            local function UC(nh,ns,nv)
+                H2=nh or H2; SA=ns or SA; V2=nv or V2
+                local Col=Color3.fromHSV(H2,SA,V2); Preview.BackgroundColor3=Col
+                SVBox.BackgroundColor3=Color3.fromHSV(H2,1,1)
+                if Config.Callback then Config.Callback(Col) end
+            end
+            if not Locked then
+                local dH,dSV=false,false
+                UIS.InputChanged:Connect(function(i)
+                    if i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch then
+                        if dH then UC(math.clamp((i.Position.X-HueBar.AbsolutePosition.X)/HueBar.AbsoluteSize.X,0,1),nil,nil)
+                        elseif dSV then UC(nil,math.clamp((i.Position.X-SVBox.AbsolutePosition.X)/SVBox.AbsoluteSize.X,0,1),1-math.clamp((i.Position.Y-SVBox.AbsolutePosition.Y)/SVBox.AbsoluteSize.Y,0,1)) end
+                    end
+                end)
+                HueBar.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dH=true end end)
+                SVBox.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dSV=true end end)
+                UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dH=false; dSV=false end end)
+            end
+            if Config.Color then local h,s,v=Config.Color:ToHSV(); UC(h,s,v) end
+            function RT:Set(c) local h,s,v=c:ToHSV(); UC(h,s,v) end
+            return RT
+        end
+
+        -- MINI CARD (cadre 100×150 : image + texte + bouton/toggle)
+        function Reg.MiniCard(Page, Config)
+            local RT = {}
+            local Corner = function(P,S2) local c=Instance.new("UICorner"); c.Parent=P; c.CornerRadius=(S2=="Square") and UDim.new(0,4) or UDim.new(0,12); return c end
+            -- Conteneur en grille 4 par ligne
+            local Grid=Page:FindFirstChild("MiniCardGrid")
+            if not Grid then
+                Grid=Instance.new("Frame"); Grid.Name="MiniCardGrid"; Grid.Parent=Page
+                Grid.BackgroundTransparency=1; Grid.Size=UDim2.new(1,-10,0,0); Grid.AutomaticSize=Enum.AutomaticSize.Y
+                local P2=Instance.new("UIPadding"); P2.Parent=Grid
+                P2.PaddingLeft=UDim.new(0,4); P2.PaddingRight=UDim.new(0,4); P2.PaddingTop=UDim.new(0,4)
+                local GL=Instance.new("UIGridLayout"); GL.Parent=Grid
+                GL.SortOrder=Enum.SortOrder.LayoutOrder; GL.CellPadding=UDim2.new(0,6,0,6)
+                GL.CellSize=UDim2.new(0,100,0,150); GL.FillDirectionMaxCells=4
+                GL.HorizontalAlignment=Enum.HorizontalAlignment.Left
+            end
+            local Card=Instance.new("Frame"); Card.Parent=Grid
+            Card.BackgroundColor3=Color3.fromRGB(28,28,28); Card.Size=UDim2.new(1,0,1,0)
+            Card:SetAttribute("SearchName", string.lower(Config.Name or ""))
+            Corner(Card, Config.BaseShape)
+            local CS=Instance.new("UIStroke"); CS.Parent=Card
+            CS.Color=Config.StrokeColor or Color3.fromRGB(55,55,55); CS.Thickness=1
+            CS.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
+            -- Image (moitié haute)
+            local Img=Instance.new("ImageLabel"); Img.Name="Icon"; Img.Parent=Card
+            Img.BackgroundColor3=Color3.fromRGB(40,40,40); Img.BackgroundTransparency=0.2
+            Img.Position=UDim2.new(0,6,0,6); Img.Size=UDim2.new(1,-12,0,72)
+            Img.Image=Config.Image or ""; Img.ScaleType=Enum.ScaleType.Fit
+            Corner(Img, Config.BaseShape)
+            -- Texte (milieu bas)
+            local NL=Instance.new("TextLabel"); NL.Parent=Card
+            NL.BackgroundTransparency=1; NL.Position=UDim2.new(0,4,0,82); NL.Size=UDim2.new(1,-8,0,18)
+            NL.Font=Enum.Font.SourceSansBold; NL.Text=Config.Name or ""
+            NL.TextColor3=S.TextColor; NL.TextSize=13; NL.TextWrapped=true
+            -- Bouton/Toggle (bas)
+            local Mode=Config.Mode or "Button"
+            local ActionRow=Instance.new("Frame"); ActionRow.Parent=Card
+            ActionRow.AnchorPoint=Vector2.new(0.5,0); ActionRow.Position=UDim2.new(0.5,0,0,106)
+            ActionRow.Size=UDim2.new(1,-12,0,34); ActionRow.BackgroundColor3=Color3.fromRGB(40,40,40)
+            Corner(ActionRow, Config.ButtonShape)
+            if Mode=="Toggle" then
+                local BL=Instance.new("TextLabel"); BL.Parent=ActionRow
+                BL.BackgroundTransparency=1; BL.Position=UDim2.new(0,6,0,0); BL.Size=UDim2.new(0.55,0,1,0)
+                BL.Font=Enum.Font.SourceSansBold; BL.Text=Config.ButtonText or ""; BL.TextColor3=S.TextColor
+                BL.TextSize=12; BL.TextXAlignment=Enum.TextXAlignment.Left
+                local Pill=Instance.new("Frame"); Pill.Parent=ActionRow
+                Pill.BackgroundColor3=Color3.fromRGB(40,40,40)
+                Pill.AnchorPoint=Vector2.new(1,0.5); Pill.Position=UDim2.new(1,-4,0.5,0); Pill.Size=UDim2.new(0,44,0,20)
+                Instance.new("UICorner",Pill).CornerRadius=UDim.new(1,0)
+                local Knob=Instance.new("Frame"); Knob.Parent=Pill
+                Knob.BackgroundColor3=Color3.fromRGB(220,220,220); Knob.AnchorPoint=Vector2.new(0,0.5)
+                Knob.Position=UDim2.new(0,2,0.5,0); Knob.Size=UDim2.new(0,16,0,16)
+                Instance.new("UICorner",Knob).CornerRadius=UDim.new(1,0)
+                local Toggled=Config.CurrentValue or false
+                local CB=Instance.new("TextButton"); CB.Parent=Pill; CB.BackgroundTransparency=1; CB.Size=UDim2.new(1,0,1,0); CB.Text=""
+                local function UpT()
+                    local tp=Toggled and UDim2.new(1,-18,0.5,0) or UDim2.new(0,2,0.5,0)
+                    local tc=Toggled and S.AccentColor or Color3.fromRGB(40,40,40)
+                    TS:Create(Knob,TweenInfo.new(0.2),{Position=tp}):Play(); TS:Create(Pill,TweenInfo.new(0.2),{BackgroundColor3=tc}):Play()
+                    if Config.Callback then Config.Callback(Toggled) end
+                end
+                if Toggled then UpT() end
+                CB.MouseButton1Click:Connect(function() Toggled=not Toggled; UpT() end)
+                function RT:Set(v) Toggled=v; UpT() end
+            else
+                local AB=Instance.new("TextButton"); AB.Parent=ActionRow; AB.BackgroundTransparency=1
+                AB.Size=UDim2.new(1,0,1,0); AB.Font=Enum.Font.SourceSansBold; AB.Text=Config.ButtonText or ""
+                AB.TextColor3=S.TextColor; AB.TextSize=14
+                AB.MouseButton1Click:Connect(function()
+                    TS:Create(ActionRow,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(60,60,60)}):Play()
+                    task.wait(0.1); TS:Create(ActionRow,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(40,40,40)}):Play()
+                    if Config.Callback then Config.Callback() end
+                end)
+                function RT:Set(v) AB.Text=tostring(v) end
+            end
+            -- Hover sur le bouton (centré)
+            if Config.HoverEffect~=false then
+                local BS=ActionRow.Size
+                Card.MouseEnter:Connect(function()
+                    TS:Create(ActionRow,TweenInfo.new(0.15,Enum.EasingStyle.Quad),{Size=UDim2.new(BS.X.Scale,BS.X.Offset+6,BS.Y.Scale,BS.Y.Offset+4)}):Play()
+                    TS:Create(CS,TweenInfo.new(0.15),{Color=S.AccentColor,Thickness=2}):Play()
+                end)
+                Card.MouseLeave:Connect(function()
+                    TS:Create(ActionRow,TweenInfo.new(0.15,Enum.EasingStyle.Quad),{Size=BS}):Play()
+                    TS:Create(CS,TweenInfo.new(0.15),{Color=Config.StrokeColor or Color3.fromRGB(55,55,55),Thickness=1}):Play()
+                end)
+            end
+            function RT:SetImage(i) Img.Image=i end
+            function RT:SetText(t) NL.Text=t; Card:SetAttribute("SearchName",string.lower(t)) end
+            function RT:SetButtonText(t)
+                for _,c in pairs(ActionRow:GetChildren()) do
+                    if c:IsA("TextLabel") or c:IsA("TextButton") then c.Text=t end
+                end
+            end
+            return RT
+        end
+
+        return Reg
+    end
+
     -- [ FONCTIONS DE CRÉATION D'ÉLÉMENTS ] --
 
-    -- Proxy de création : cherche dans ButtonRegistry, puis dans IconCardFn
-    local function CreateElement(Page, Type, Config)
-        Config = Config or {}
-        -- Chargement paresseux du registre (une seule fois)
-        if not ButtonRegistry then
+    -- Pré-chargement en parallèle dès CreateWindow (plus besoin d'attendre au 1er CreateElement)
+    -- Si GitHub est inaccessible → le fallback intégré prend le relais automatiquement
+    do
+        local function LoadButtons()
             local ok, res = pcall(function()
                 return loadstring(game:HttpGet(BUTTONS_URL))()(ModuleCtx)
             end)
-            if ok then
+            if ok and res then
                 ButtonRegistry = res
             else
-                -- Fallback intégré si GitHub inaccessible
-                ButtonRegistry = {}
-                warn("[SoroniceLib] Impossible de charger Buttons depuis GitHub : " .. tostring(res))
+                warn("[SoroniceLib] Buttons GitHub inaccessible → fallback intégré actif")
+                ButtonRegistry = MakeFallbackButtons(ModuleCtx)
             end
         end
-        if not IconCardFn then
+        local function LoadIconCard()
             local ok, res = pcall(function()
                 return loadstring(game:HttpGet(ICONCARD_URL))()(ModuleCtx)
             end)
-            if ok then
+            if ok and res then
                 IconCardFn = res
             else
-                IconCardFn = function() return {} end
-                warn("[SoroniceLib] Impossible de charger IconCard depuis GitHub : " .. tostring(res))
+                warn("[SoroniceLib] IconCard GitHub inaccessible → MiniCard fallback actif")
+                IconCardFn = nil  -- MiniCard disponible via ButtonRegistry["MiniCard"]
             end
         end
+        -- Chargement synchrone (les onglets apparaissent dès que c'est prêt)
+        LoadButtons()
+        LoadIconCard()
+    end
 
-        local ReturnedTable = {}
-        if Type == "IconCard" then
-            ReturnedTable = IconCardFn(Page, Config) or {}
-        elseif ButtonRegistry[Type] then
-            ReturnedTable = ButtonRegistry[Type](Page, Config) or {}
+    local function CreateElement(Page, Type, Config)
+        Config = Config or {}
+        local RT = {}
+        if Type == "IconCard" or Type == "MiniCard" then
+            if IconCardFn and Type == "IconCard" then
+                RT = IconCardFn(Page, Config) or {}
+            elseif ButtonRegistry and ButtonRegistry["MiniCard"] then
+                RT = ButtonRegistry["MiniCard"](Page, Config) or {}
+            end
+        elseif ButtonRegistry and ButtonRegistry[Type] then
+            RT = ButtonRegistry[Type](Page, Config) or {}
         end
-        return ReturnedTable
+        return RT
     end
     -- Rend CreateElement disponible au module Settings
     ModuleCtx.CreateElement = CreateElement
@@ -1070,6 +1456,7 @@ function SoroniceLib:CreateWindow(Config)
         function TabFunctions:CreateParagraph(Config) return CreateElement(Page, "Paragraph", Config) end 
         function TabFunctions:CreateDivider() return CreateElement(Page, "Divider", {}) end 
         function TabFunctions:CreateIconCard(Config) return CreateElement(Page, "IconCard", Config) end 
+        function TabFunctions:CreateMiniCard(Config) return CreateElement(Page, "MiniCard", Config) end 
         
         function TabFunctions:CreateSlider(Config)
              local SliderFrame = Instance.new("Frame")
