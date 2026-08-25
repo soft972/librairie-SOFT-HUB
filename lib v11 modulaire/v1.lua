@@ -354,8 +354,8 @@ function SoroniceLib:CreateWindow(Config)
     MobileOpenBtn.BackgroundTransparency = 0.2
     MobileOpenBtn.Position = UDim2.new(0.1, 0, 0.1, 0)
     MobileOpenBtn.Size = UDim2.new(0, 50, 0, 50)
-    MobileOpenBtn.Image = Config.MobileImage or "rbxassetid://133601263847208"
-    MobileOpenBtn.Visible = false
+    MobileOpenBtn.Image = Config.MobileImage or "rbxassetid://121402326369990"
+    MobileOpenBtn.Visible = true
     Instance.new("UICorner", MobileOpenBtn).CornerRadius = UDim.new(0, 12)
     do
         local dragging_mob, dragInput_mob, dragStart_mob, startPos_mob
