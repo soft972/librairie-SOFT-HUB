@@ -286,13 +286,12 @@ function SoroniceLib:CreateWindow(Config)
 
     -- ============================================================
     -- CHARGEMENT DES MODULES GITHUB
-    -- Remplace les 3 URLs ci-dessous après avoir mis les fichiers
-    -- sur GitHub. Format raw :
-    --   https://raw.githubusercontent.com/COMPTE/REPO/main/FichierX.lua
+    -- Repo : soft972/librairie-SOFT-HUB (branche main)
     -- ============================================================
-    local BUTTONS_URL  = "https://raw.githubusercontent.com/TON_COMPTE/TON_REPO/main/SoroniceLib_Buttons.lua"
-    local ICONCARD_URL = "https://raw.githubusercontent.com/TON_COMPTE/TON_REPO/main/SoroniceLib_IconCard.lua"
-    local SETTINGS_URL = "https://raw.githubusercontent.com/TON_COMPTE/TON_REPO/main/SoroniceLib_Settings.lua"
+    local BUTTONS_URL  = "https://raw.githubusercontent.com/soft972/librairie-SOFT-HUB/refs/heads/main/buttons.lua"
+    local ICONCARD_URL = "https://raw.githubusercontent.com/soft972/librairie-SOFT-HUB/refs/heads/main/iconcard.lua"
+    local SETTINGS_URL = "https://raw.githubusercontent.com/soft972/librairie-SOFT-HUB/refs/heads/main/settings.lua"
+    local MINICARD_URL = "https://raw.githubusercontent.com/soft972/librairie-SOFT-HUB/refs/heads/main/minicard.lua"
 
     -- antiAfkActive passé par référence aux modules externes
     local antiAfkRef = { value = false }
@@ -354,8 +353,8 @@ function SoroniceLib:CreateWindow(Config)
     MobileOpenBtn.BackgroundTransparency = 0.2
     MobileOpenBtn.Position = UDim2.new(0.1, 0, 0.1, 0)
     MobileOpenBtn.Size = UDim2.new(0, 50, 0, 50)
-    MobileOpenBtn.Image = Config.MobileImage or "rbxassetid://88826557233195"
-    MobileOpenBtn.Visible = true
+    MobileOpenBtn.Image = Config.MobileImage or "rbxassetid://121402326369990"
+    MobileOpenBtn.Visible = false
     Instance.new("UICorner", MobileOpenBtn).CornerRadius = UDim.new(0, 12)
     do
         local dragging_mob, dragInput_mob, dragStart_mob, startPos_mob
@@ -908,6 +907,7 @@ function SoroniceLib:CreateWindow(Config)
     local ModuleCtx      -- déclaré avant l'assignation (fix: évite le nil à la ligne 978)
     local ButtonRegistry -- rempli au premier appel de CreateElement
     local IconCardFn     -- idem
+    local MiniCardFn     -- idem (module minicard.lua séparé)
 
     ModuleCtx = {
         Settings         = Settings,
@@ -1349,17 +1349,35 @@ function SoroniceLib:CreateWindow(Config)
                 IconCardFn = nil  -- MiniCard disponible via ButtonRegistry["MiniCard"]
             end
         end
+        local function LoadMiniCard()
+            local ok, res = pcall(function()
+                return loadstring(game:HttpGet(MINICARD_URL))()(ModuleCtx)
+            end)
+            if ok and res then
+                MiniCardFn = res
+            else
+                warn("[SoroniceLib] minicard.lua GitHub inaccessible → fallback intégré actif")
+                MiniCardFn = nil  -- utilisera ButtonRegistry["MiniCard"] (fallback intégré)
+            end
+        end
         -- Chargement synchrone (les onglets apparaissent dès que c'est prêt)
         LoadButtons()
         LoadIconCard()
+        LoadMiniCard()
     end
 
     local function CreateElement(Page, Type, Config)
         Config = Config or {}
         local RT = {}
-        if Type == "IconCard" or Type == "MiniCard" then
-            if IconCardFn and Type == "IconCard" then
+        if Type == "IconCard" then
+            if IconCardFn then
                 RT = IconCardFn(Page, Config) or {}
+            elseif ButtonRegistry and ButtonRegistry["MiniCard"] then
+                RT = ButtonRegistry["MiniCard"](Page, Config) or {}
+            end
+        elseif Type == "MiniCard" then
+            if MiniCardFn then
+                RT = MiniCardFn(Page, Config) or {}
             elseif ButtonRegistry and ButtonRegistry["MiniCard"] then
                 RT = ButtonRegistry["MiniCard"](Page, Config) or {}
             end
