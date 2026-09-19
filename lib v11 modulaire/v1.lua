@@ -10,7 +10,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local HttpService = game:GetService("HttpService")
 local StatsService = game:GetService("Stats") 
 local LocalPlayer = game.Players.LocalPlayer
-local CoreGui = game:GetService("CoreGui")
+local CoreGui = (gethui and gethui()) or game:GetService("CoreGui") -- ✅ FIX compatibilité jeux
 local VirtualUser = game:GetService("VirtualUser")
 local StarterGui = game:GetService("StarterGui")
 
@@ -31,11 +31,17 @@ local Settings = {
 local ActiveToggles = {} 
 
 -- [ SYSTÈME AFK ] --
+-- ✅ FIX : Idled ne se déclenche qu'après ~20 min d'inactivité réelle.
+-- On utilise une boucle active qui simule une entrée toutes les 100s,
+-- bien avant le seuil de kick AFK de Roblox — donc ça protège dès l'activation.
 local antiAfkActive = false
-LocalPlayer.Idled:Connect(function()
-    if antiAfkActive then
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
+task.spawn(function()
+    while true do
+        task.wait(100)
+        if antiAfkActive then
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end
     end
 end)
 
@@ -395,13 +401,27 @@ function SoroniceLib:CreateWindow(Config)
 	MainFrame.BackgroundTransparency = 0.2
     MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     
+    -- ✅ FIX : on lit la taille sauvegardée AVANT l'animation d'ouverture.
+    -- Avant, la fenêtre s'ouvrait toujours en 550x350 (0.7s d'animation),
+    -- puis le module Settings essayait de corriger la taille juste après —
+    -- mais l'animation d'ouverture, plus longue, finissait par écraser
+    -- cette correction et tout revenait à la taille par défaut.
+    local SavedWidth, SavedHeight = nil, nil
+    do
+        local ok, content = pcall(readfile, "SoroniceSave.txt")
+        if ok and content then
+            SavedWidth  = tonumber(content:match("WindowWidth=([%d%.]+)"))
+            SavedHeight = tonumber(content:match("WindowHeight=([%d%.]+)"))
+        end
+    end
+
     local TargetSize
     if IsMobile then
         MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0) 
-        TargetSize = UDim2.new(0, 400, 0, 260) 
+        TargetSize = UDim2.new(0, SavedWidth or 400, 0, SavedHeight or 260) 
     else
 	    MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-        TargetSize = UDim2.new(0, 550, 0, 350) -- [TAILLE D'ORIGINE]
+        TargetSize = UDim2.new(0, SavedWidth or 550, 0, SavedHeight or 350) -- [TAILLE D'ORIGINE OU SAUVEGARDÉE]
     end
     
     MainFrame.Size = UDim2.new(0, 0, 0, 0)
