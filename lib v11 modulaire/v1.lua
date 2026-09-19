@@ -31,14 +31,16 @@ local Settings = {
 local ActiveToggles = {} 
 
 -- [ SYSTÈME AFK ] --
--- ✅ FIX : Idled ne se déclenche qu'après ~20 min d'inactivité réelle.
--- On utilise une boucle active qui simule une entrée toutes les 100s,
--- bien avant le seuil de kick AFK de Roblox — donc ça protège dès l'activation.
-local antiAfkActive = false
+-- ✅ FIX CRITIQUE : le toggle "Mode AFK" dans les Paramètres modifiait
+-- une variable (antiAfkRef.value) totalement différente de celle que
+-- cette boucle vérifiait (antiAfkActive) — donc activer le toggle ne
+-- faisait RIEN, et le kick à 20 min était inévitable.
+-- Maintenant, la boucle ET les Paramètres partagent LA MÊME table.
+local AntiAfkState = { value = false }
 task.spawn(function()
     while true do
         task.wait(100)
-        if antiAfkActive then
+        if AntiAfkState.value then
             VirtualUser:CaptureController()
             VirtualUser:ClickButton2(Vector2.new())
         end
@@ -299,8 +301,10 @@ function SoroniceLib:CreateWindow(Config)
     local SETTINGS_URL = "https://raw.githubusercontent.com/soft972/librairie-SOFT-HUB/refs/heads/main/settings.lua"
     local MINICARD_URL = "https://raw.githubusercontent.com/soft972/librairie-SOFT-HUB/refs/heads/main/minicard.lua"
 
-    -- antiAfkActive passé par référence aux modules externes
-    local antiAfkRef = { value = false }
+    -- ✅ FIX : on réutilise AntiAfkState (déclarée en haut du fichier),
+    -- la même table que lit la boucle anti-kick. Avant, on créait ici
+    -- une table toute neuve, déconnectée de la boucle qui tournait déjà.
+    local antiAfkRef = AntiAfkState
     local AlwaysVisibleRef = { value = false }
 
     -- [APPLY LOCK FUNCTION]
