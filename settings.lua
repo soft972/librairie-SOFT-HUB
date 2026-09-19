@@ -272,10 +272,14 @@ return function(Ctx)
 
     -- Taille de la fenêtre (les sliders redimensionnent ContentContainer
     -- automatiquement car il utilise maintenant UDim2 relatif)
+    -- ✅ FIX : on utilise CurrentValues.WindowWidth/Height (déjà connus)
+    -- au lieu de MainFrame.AbsoluteSize, qui peut être encore en train
+    -- d'animer et donc donner une valeur fausse au moment de l'appliquer.
     CE("WindowWidth",
         function(v)
+            CurrentValues.WindowWidth = v
             TweenService:Create(MainFrame, TweenInfo.new(0.2), {
-                Size = UDim2.new(0, v, 0, MainFrame.AbsoluteSize.Y)
+                Size = UDim2.new(0, v, 0, CurrentValues.WindowHeight or 350)
             }):Play()
         end,
         "Slider", {
@@ -285,7 +289,7 @@ return function(Ctx)
             Callback = function(v)
                 CurrentValues.WindowWidth = v
                 TweenService:Create(MainFrame, TweenInfo.new(0.2), {
-                    Size = UDim2.new(0, v, 0, MainFrame.AbsoluteSize.Y)
+                    Size = UDim2.new(0, v, 0, CurrentValues.WindowHeight or 350)
                 }):Play()
             end
         }
@@ -293,8 +297,9 @@ return function(Ctx)
 
     CE("WindowHeight",
         function(v)
+            CurrentValues.WindowHeight = v
             TweenService:Create(MainFrame, TweenInfo.new(0.2), {
-                Size = UDim2.new(0, MainFrame.AbsoluteSize.X, 0, v)
+                Size = UDim2.new(0, CurrentValues.WindowWidth or 550, 0, v)
             }):Play()
         end,
         "Slider", {
@@ -304,7 +309,7 @@ return function(Ctx)
             Callback = function(v)
                 CurrentValues.WindowHeight = v
                 TweenService:Create(MainFrame, TweenInfo.new(0.2), {
-                    Size = UDim2.new(0, MainFrame.AbsoluteSize.X, 0, v)
+                    Size = UDim2.new(0, CurrentValues.WindowWidth or 550, 0, v)
                 }):Play()
             end
         }
